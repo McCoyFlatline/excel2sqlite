@@ -1,7 +1,0 @@
-*.db
-*.xlsx
-logs/
-__pycache__/
-*.txt
-*.MD
-benchmark.py
