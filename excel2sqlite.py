@@ -43,11 +43,11 @@ def grab_worksheet(xcel_filename, wkst_name):
 # first_col --> wk.cell(1,1) == 'A1', wk.cell(1,2) == 'B1'
 def grab_fields(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
     fields = []
-    types=[]
+    # add 1 to include the last field
+    last_col += 1
     for col in range(first_col, last_col):
-        if wkst.cell(row,col).value in skip:
+        if wkst.cell(row,col).value in skip or col in skip:
             continue
-
         fields.append(wkst.cell(row,col).value)
     return fields
 
@@ -55,15 +55,15 @@ def grab_fields(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
 # grab datatypes / data formats
 def grab_types(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
     types = []
-    for col in range(first_col, last_col):
-        if wkst.cell(row,col).value in skip:
+    for col in range(first_col, last_col+1):
+        if wkst.cell(row,col).value in skip or col in skip:
             continue
         types.append(wkst.cell(row,col).number_format)
     return types
 
 
 # combine fields into a schema string for an sqlite statement
-def create_schema(fields, types):
+def create_schema(fields, types, pri_key=False):
     schema=[]
     for num in range(len(fields)):
         if '.' in types[num]:
@@ -74,6 +74,11 @@ def create_schema(fields, types):
             types[num] = 'TEXT'
         else:
             print('Unidentified number_format: ' + str(fields[num]) + " " + str(types[num]))
+        # Adding option for primary, keeping commented out for now
+        # assuming the column number is passed through pri_key
+#        if num == pri_key:
+#               types[pri_key] +=' PRIMARY KEY'
+
         schema.append(fields[num] + ' ' + types[num])
 
     return ", ".join(schema)
@@ -81,36 +86,10 @@ def create_schema(fields, types):
 
 def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
     records = {}
+    last_col+=1
+    last_row+=1
     #starting at row 1 to the nth row.
-    for row_num in range(first_row, last_row + 1):
-
-        # if row is skippable, skip
-        # Blank cell (row)                           or      'Item #' (2nd col)
-        if wkst.cell(row_num,1).value in [None, ' '] or wkst.cell(row_num,2).value == "ItemNum":
-            continue
-        else:
-            # else, prep the next row into the dictionary
-            records.update({str(row_num):[]})
-
-    # starting at 'A' (first col) to the nth col.
-        for col_num in range(first_col, last_col):
-            # if cell is skippable, skip.
-            if col_num in skip:
-                continue
-
-            #if number formatted cell is empty, fill with 0
-            if wkst.cell(row_num,col_num).value == None:
-                wkst.cell(row_num,col_num).value = 0
-            # append cell's value to list in the dictionary
-                records[str(row_num)].append(stringify(wkst.cell(row_num,col_num).value))
-    return records
-
-
-
-def grab_records_gen_kinda(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
-    records = {}
-    #starting at row 1 to the nth row.
-    for row_num in range(first_row, last_row + 1):
+    for row_num in range(first_row, last_row):
 
         # if row is skippable, skip
         # Blank cell (row)                           or      'Item #' (2nd col)
@@ -131,18 +110,88 @@ def grab_records_gen_kinda(wkst, last_col, last_row, first_col=1, first_row=1, s
                 wkst.cell(row_num,col_num).value = 0
             # append cell's value to list in the dictionary
             records[str(row_num)].append(stringify(wkst.cell(row_num,col_num).value))
+#            records[str(row_num)].append(wkst.cell(row_num,col_num).value)
+    return records
+
+
+def grab_records_gen_kinda(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
+    records = {}
+    # If we don't add 1, they'll be off by one
+    # since .cell_value(r,c) starts at one and not zero.
+    last_col+=1
+    last_row+=1
+    #starting at row 1 to the nth row.
+    for row_num in range(first_row, last_row):
+
+        # if row is skippable, skip
+        # Blank cell (row)                           or      'Item #' (2nd col)
+        if wkst.cell(row_num,1).value in [None, ' '] or wkst.cell(row_num,2).value == "ItemNum":
+            continue
+        else:
+            # else, prep the next row into the dictionary
+            records.update({str(row_num):[]})
+
+    # starting at 'A' (first col) to the nth col.
+        for col_num in range(first_col, last_col):
+            # if cell is skippable, skip.
+            if col_num in skip:
+                continue
+
+            #if number formatted cell is empty, fill with 0
+            if wkst.cell(row_num,col_num).value == None:
+                wkst.cell(row_num,col_num).value = 0
+
+            # append cell's value to list in the dictionary
+            records[str(row_num)].append(stringify(wkst.cell(row_num,col_num).value))
 
         yield ', '.join(records[str(row_num)])
         records.clear()
 
 
-def grab_letter(col_number):
+def grab_col_letter(col_number):
     alphabet = {1:'A',2:'B',3:'C',4:'D',5:'E',6:'F',7:'G',8:'H',
                 9:'I',10:'J',11:'K',12:'L',13:'M',14:'N',15:'O',
                 16:'P',17:'Q',18:'R',19:'S',20:'T',21:'U',22:'V',
                 23:'W',24:'X',25:'Y',26:'Z'}
-    remainder = (col_number+1) % 26
-    return alphabet[remainder]
+    result=''
+    multiple = col_number // 26
+    while col_number // 26 > 0:
+        result += alphabet[multiple]
+        col_number -= 26 * multiple
+        multiple = col_number // 26
+    result+=alphabet[col_number%26]
+    return result
+
+
+def grab_col_index(column):
+    betalpha = {' ':0,'A':1,'B':2,'C':3,'D':4,'E':5,'F':6,'G':7,'H':8,
+                'I':9,'J':10,'K':11,'L':12,'M':13,'N':14,'O':15,
+                'P':16,'Q':17,'R':18,'S':19,'T':20,'U':21,'V':22,
+                'X':23,'Y':24,'X':25,'Z':26}
+    index = 0
+    for num in range(len(column)):
+        index += (betalpha[column[-num].upper()] % 27 * (26**num))
+    return index
+
+
+def find_length_row(wkst, row=1):
+    for col in range(1,(len(wkst[row])+1)):
+        if wkst.cell(row, col).value != None:
+            # have to add 1, otherwise it'll always be off by 1
+            return ( len(wkst[row]) + 1) - col
+
+#col can be a letter or number. 'A' --> 1, 'AB' --> 28
+def find_length_col(wkst, col='A'):
+    #if col is int, grab column letter.
+    if isinstance(col, int):
+        col = grab_col_letter(col)
+    # assuming col is str
+    col_index = grab_col_index(col)
+
+    for row in range(1,(len(wkst[col]) + 1)):
+        if wkst.cell(row, col_index).value != None:
+            # have to add 1, otherwise it'll always be off by 1
+            return ( len(wkst[col]) + 1) - row
 
 
 def table_exists(cursor, table):
@@ -213,9 +262,9 @@ def create_db(cursor, database):
     #       do it itself), but I don't feel like doing that.
 
 # Debating keeping this.
-def connect_to_db(sqlite3_mod, database):
+def connect_to_db(database):
     database = check_extension(database)
-    connection = connect(sqlite3_mod, database)
+    connection = connect(sqlite3, database)
     cursor = grab_cursor(connection)
     return connection, cursor
 
@@ -251,7 +300,7 @@ def select(cursor, table, cols):
 # select all columns
 def select_all(cursor, table):
     cursor.execute(f'''SELECT * from {table}''')
-    
+
 
 def get_datatype(num):
     datatype = {'0': 'NULL', '1': 'INTEGER', '2': 'REAL',
@@ -276,13 +325,13 @@ def stringify(string):
 
 if __name__ == '__main__':
     # Basic program information
-#    diag.__info__(__title__, __version__, __status__, __author__, __email__)
+    diag.__info__(__title__, __version__, __status__, __author__, __email__)
 #
 #    wb = grab_workbook()
-    wk = grab_worksheet("dealer_price_list.xlsx", 'MI')
+    wk = grab_worksheet("pv_price_list.xlsx", 'MI')
 
     # Need to add 1 to last_col since wkst.cell(row, col) starts at 1 for col instead of 0.
-    last_col = len(wk[1]) + 1
+    last_col = len(wk[1])
     # len(wk[1]) --> amount of cells on row 1, starting at column 1 ('A')
     # to the last cell that has a value.
 
@@ -317,7 +366,7 @@ if __name__ == '__main__':
     try:
         # set connection and grab cursor
         t02=dt.now()
-        connection, cursor = connect_to_db(sqlite3, database)
+        connection, cursor = connect_to_db(database)
         t03=dt.now()
     except Exception as e:
           # incase anything happens
@@ -332,7 +381,6 @@ if __name__ == '__main__':
 
     # Get name for table
     table_name = input('table name:\n>')
-
     # Create table
     create_table(cursor, table_name, create_schema(fs, ty))
 
@@ -340,12 +388,13 @@ if __name__ == '__main__':
 
     # Insert some data
     t0=dt.now()
-    for values in grab_records_gen_kinda(wk, last_col, last_row, skip=[None,' ',6]):
+    for values in grab_records_gen_kinda(wk, last_col, last_row, skip=[None,' ',7]):
        insert_all(cursor, table_name, values)
     commit(connection)
     t1= dt.now()
+
     t2=dt.now()
-    for k, recods in grab_records(wk, last_col, last_row, skip=[None,' ',6]).items():
+    for k, recods in grab_records(wk, last_col, last_row, skip=[None,' ',7]).items():
         insert_all(cursor, table_name, ', '.join(recods))
     commit(connection)
     t3= dt.now()
