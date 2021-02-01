@@ -1,3 +1,9 @@
-!.gitignore
-!excel2sqlite.py
-!make_db_from_xlsx.py
+TODO.TXT
+__pycache__/
+benchmark.py
+dealer_price_list.xlsx
+logs/
+pv_accessories.xlsx
+pv_price_list.xlsx
+README.MD
+*.db
