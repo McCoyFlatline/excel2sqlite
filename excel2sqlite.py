@@ -34,7 +34,7 @@ logging.basicConfig(filename='logs/db_log.log', level=logging.NOTSET,
 
 # Grab worksheet data
 def grab_worksheet(xcel_filename, wkst_name):
-    wb = load_workbook(filename=xcel_filename)
+    wb = load_workbook(filename=xcel_filename, keep_links=False)
     return wb[wkst_name]
 
 
@@ -104,7 +104,6 @@ def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
             # if cell is skippable, skip.
             if col_num in skip:
                 continue
-
             #if number formatted cell is empty, fill with 0
             if wkst.cell(row_num,col_num).value == None:
                 wkst.cell(row_num,col_num).value = 0
@@ -328,7 +327,7 @@ if __name__ == '__main__':
     diag.__info__(__title__, __version__, __status__, __author__, __email__)
 #
 #    wb = grab_workbook()
-    wk = grab_worksheet("pv_price_list.xlsx", 'MI')
+    wk = grab_worksheet("dealer_price_list.xlsx", 'MI')
 
     # Need to add 1 to last_col since wkst.cell(row, col) starts at 1 for col instead of 0.
     last_col = len(wk[1])
