@@ -59,7 +59,8 @@ def grab_fields(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
 def grab_types(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
     ''' Return datatypes [types] (number_format in excel) of cell values. '''
     types = []
-    for col in range(first_col, last_col+1):
+    last_col += 1
+    for col in range(first_col, last_col):
         if wkst.cell(row,col).value in skip or col in skip:
             continue
         types.append(wkst.cell(row,col).number_format)
