@@ -35,7 +35,7 @@ logging.basicConfig(filename='logs/db_log.log', level=logging.NOTSET,
 
 # Grab worksheet data
 def grab_worksheet(xcel_filename, wkst_name):
-    ''' Loads excel workbook then returns Worksheet class object. '''
+    ''' Load excel workbook then returns Worksheet class object. '''
     wb = load_workbook(filename=xcel_filename, keep_links=False)
     return wb[wkst_name]
 
@@ -44,8 +44,7 @@ def grab_worksheet(xcel_filename, wkst_name):
 # first_row --> wk.cell(1,1) == 'A1', wk.cell(2,1) == 'A2'
 # first_col --> wk.cell(1,1) == 'A1', wk.cell(1,2) == 'B1'
 def grab_fields(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
-    ''' Returns column names [fields] from excel worksheet by
-        looping through worksheet cells then grabbing the value. '''
+    ''' Return column names [fields] from excel worksheet. '''
     fields = []
     # add 1 to include the last field
     last_col += 1
@@ -58,8 +57,7 @@ def grab_fields(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
 
 # grab datatypes / data formats
 def grab_types(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
-    ''' Returns datatypes [types] (number formatting in excel) of
-        cell values. '''
+    ''' Return datatypes [types] (number_format in excel) of cell values. '''
     types = []
     for col in range(first_col, last_col+1):
         if wkst.cell(row,col).value in skip or col in skip:
@@ -70,8 +68,7 @@ def grab_types(wkst, last_col, first_col=1, row=1, skip=[None, ' ']):
 
 # combine fields into a schema string for an sqlite statement
 def create_schema(fields, types, pri_key=False):
-    ''' Loops through and concatenates [fields] and [types] then
-        returns 'schema' as a string. '''
+    ''' Join strings from fields and lists then return them as one string. '''
     schema=[]
     for num in range(len(fields)):
         # Debating just putting REAL since that's what sqlite does.
@@ -94,8 +91,9 @@ def create_schema(fields, types, pri_key=False):
 
 
 def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
-    ''' Returns dict() records, which is {"number": "row_of_cell_values"}.
-        Use if memory usage is not significant. '''
+    ''' Update dict records with appended cell_values from first to last column.
+        Return dict records. Use if memory usage is not significant.
+    '''
     records = {}
     # Have to add one because cols and rows can't start at 0,
     # and has to include the actual last row and column
@@ -128,8 +126,9 @@ def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
 ##  Feb, 6, 2021. Thoughts:
 ##  remove skip for rows, keep for columns.
 def grab_records_gen(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
-    ''' Yields dict() records, which is {"number": "row_of_cell_values"}.
-        Use if memory usage is significant.'''
+    ''' Yield dict records with appended cell_values from first to last column.
+        Return dict records. Use if memory usage is not significant.
+    '''
     records = {}
     # Have to add one because cols and rows can't start at 0,
     # and has to include the actual last row and column
@@ -166,7 +165,7 @@ def grab_records_gen(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]
 
 # 1 -> 'A', 27 -> 'AA', 455 -> 'QM'
 def grab_col_letter(col_number):
-    ''' Returns column letter name in relation to the column's
+    ''' Return column letter name in relation to the column's
         number (col_number).
     '''
     alphabet = {0:'Z',1:'A',2:'B',3:'C',4:'D',5:'E',6:'F',7:'G',8:'H',
