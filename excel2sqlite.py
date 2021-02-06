@@ -121,10 +121,11 @@ def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
                 wkst.cell(row_num,col_num).value = 0
             # append cell's value to list in the dictionary
             records[str(row_num)].append(stringify(wkst.cell(row_num,col_num).value))
-#            records[str(row_num)].append(wkst.cell(row_num,col_num).value)
     return records
 
 
+##  Feb, 6, 2021. Thoughts:
+##  remove skip for rows, keep for columns.
 def grab_records_gen(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
     ''' Yields dict() records, which is {"number": "row_of_cell_values"}.
         Use if memory usage is significant.'''
