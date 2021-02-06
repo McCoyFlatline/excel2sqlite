@@ -381,7 +381,7 @@ def select_all(cursor, table):
 # cursor.execute(f"insert into table_a values ({s2})"
 #   -> "insert into table_a values ('string') ✔
 def stringify(string):
-    ''
+    ''' Add single quotes to string then return. '''
     return (f'\'{str(string)}\'')
 
 if __name__ == '__main__':
