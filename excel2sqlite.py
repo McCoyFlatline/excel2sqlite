@@ -74,6 +74,7 @@ def create_schema(fields, types, pri_key=False):
         returns 'schema' as a string. '''
     schema=[]
     for num in range(len(fields)):
+        # Debating just putting REAL since that's what sqlite does.
         if '.' in types[num]:
             types[num] = 'DOUBLE'
         elif '0' in types[num]:
