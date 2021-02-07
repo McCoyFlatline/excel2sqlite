@@ -29,10 +29,6 @@ logging.basicConfig(filename='logs/db_log.log', level=logging.NOTSET,
                     format=':%(asctime)s-%(levelname)s-%(lineno)s-%(message)s')
 
 
-######
-## OPENPYXL
-## GRAB DATA FROM EXCEL FILE
-
 # Grab worksheet data
 def grab_worksheet(xcel_filename, wkst_name):
     ''' Load excel workbook then returns Worksheet class object. '''
