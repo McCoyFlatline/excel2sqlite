@@ -1,13 +1,14 @@
-''' #!/usr/bin/python3.7 '''
-#!~/Projects/venvs/kivy_py37/bin/python3.7
+''' #qdwdq!/qwdqusr/bin/python3.7 '''
+#!~/Projects/venvs/py3.7_kivy/bin/python3.7
 
 import os
 import sys
 import logging
 import pysqlite3 as sqlite3
-import diagnostics as diag
+#import sqlite3
+#import diagnostics as diag
 from openpyxl import load_workbook
-
+from openpyxl.utils import get_column_letter #, column_index_from_string
 
 __title__ = sys.argv[0].split('/')[-1]
 __author__ = "Mccoyflatline"
@@ -20,6 +21,7 @@ __email__ = "pitft@protonmail.com"
 __status__ = "Pre-release"
 
 
+print('aaaaaaaaaaaaaaaaaaaaaaaaaaa')
 # if no log folder, create one.
 if not os.path.exists('logs/'):
     os.mkdir('logs')
@@ -28,10 +30,24 @@ if not os.path.exists('logs/'):
 logging.basicConfig(filename='logs/db_log.log', level=logging.NOTSET,
                     format=':%(asctime)s-%(levelname)s-%(lineno)s-%(message)s')
 
+def grab_workbook(xcel_filename):
+    ''' Load and return Workbook class object. '''
+    return load_workbook(filename=xcel_filename, keep_links=False)
+
 
 # Grab worksheet data
-def grab_worksheet(xcel_filename, wkst_name):
-    ''' Load excel workbook then returns Worksheet class object. '''
+def grab_worksheet(wkbk, wkst_name):
+    ''' Return Worksheet class object. '''
+    return wkbk[wkst_name]
+
+
+def grab_sheet_titles(wkbk):
+    ''' Return worksheet titles. '''
+    return wkbk.sheetnames
+
+
+def grab_worksheet_single(xcel_filename, wkst_name):
+    ''' Load Workbook and return one Worksheet class object. '''
     wb = load_workbook(filename=xcel_filename, keep_links=False)
     return wb[wkst_name]
 
@@ -76,7 +92,9 @@ def create_schema(fields, types, pri_key=False):
         elif types[num] == 'General':
             types[num] = 'TEXT'
         else:
+            logging.debug(f"Unidentified number_format: {fields[num]} {types[num]}")
             print('Unidentified number_format: ' + str(fields[num]) + " " + str(types[num]))
+
         # Adding option for primary, keeping commented out for now
         # assuming the column number is passed through pri_key
 #        if num == pri_key:
@@ -87,21 +105,21 @@ def create_schema(fields, types, pri_key=False):
     return ", ".join(schema)
 
 
-def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
+def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip_r=[],skip_c=[]):
     ''' Update dict records with appended cell_values from first to last column.
         Return dict records. Use if memory usage is not significant.
     '''
     records = {}
+
     # Have to add one because cols and rows can't start at 0,
     # and has to include the actual last row and column
-    last_col+=1
-    last_row+=1
+    last_col += 1
+    last_row += 1
+
     #starting at row 1 to the nth row.
     for row_num in range(first_row, last_row):
-
         # if row is skippable, skip
-        # [Blank product number, ' ', or ItenNum title]
-        if wkst.cell(row_num,2).value in [None, ' ', "ItemNum"]:
+        if wkst.cell(row_num,2).value in skip_r or row_num in skip_r:
             continue
         else:
             # else, prep the next row into the dictionary
@@ -110,21 +128,19 @@ def grab_records(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
     # starting at 'A' (first col) to the nth col.
         for col_num in range(first_col, last_col):
             # if cell is skippable, skip.
-            if col_num in skip:
+            if col_num in skip_c or wkst.cell(row_num,col_num).value == 'Price Break':
                 continue
-            #if number formatted cell is empty, fill with 0
-            if wkst.cell(row_num,col_num).value == None:
-                wkst.cell(row_num,col_num).value = 0
+            #if number formatted cell is empty, Null
+            elif wkst.cell(row_num,col_num).value == None:
+                wkst.cell(row_num,col_num).value = 'Null'
             # append cell's value to list in the dictionary
             records[str(row_num)].append(stringify(wkst.cell(row_num,col_num).value))
     return records
 
 
-##  Feb, 6, 2021. Thoughts:
-##  remove skip for rows, keep for columns.
-def grab_records_gen(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]):
+def grab_records_gen(wkst, last_col, last_row, first_col=1, first_row=1, skip_r=[], skip_c=[]):
     ''' Yield dict records with appended cell_values from first to last column.
-        Return dict records. Use if memory usage is not significant.
+        Return dict records. Use if memory usage is significant.
     '''
     records = {}
     # Have to add one because cols and rows can't start at 0,
@@ -136,7 +152,9 @@ def grab_records_gen(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]
 
         # if row is skippable, skip
         # [Blank product number, ' ', or ItenNum title]
-        if wkst.cell(row_num,2).value in [None, ' ', "ItemNum"]:
+        # This line isn't great, but hopefully will come up
+        # with something better
+        if wkst.cell(row_num,2).value in skip_r:
             continue
         else:
             # else, prep the next row into the dictionary
@@ -144,90 +162,53 @@ def grab_records_gen(wkst, last_col, last_row, first_col=1, first_row=1, skip=[]
 
     # starting at 'A' (first col) to the nth col.
         for col_num in range(first_col, last_col):
-            # if column is skippable, skip.
-            if col_num in skip:
+            # if row is skippable, skip.
+            if col_num in skip_c:
                 continue
 
             #if number formatted cell is empty, fill with 0
             if wkst.cell(row_num,col_num).value == None:
-                wkst.cell(row_num,col_num).value = 0
+                wkst.cell(row_num,col_num).value = "Null"
 
             # append cell's value to list in the dictionary
             records[str(row_num)].append(stringify(wkst.cell(row_num,col_num).value))
 
-        yield ', '.join(records[str(row_num)])
+#        print(', '.join(records[str(row_num)]))
+        yield records[str(row_num)]
         records.clear()
 
 
+def column_index_from_string(column):
+    ''' I honestly forget the purpose of this method. '''
+    pass
 
-# 1 -> 'A', 27 -> 'AA', 455 -> 'QM'
+
 def grab_col_letter(col_number):
-    ''' Return column letter name in relation to the column's
-        number (col_number).
-    '''
-    alphabet = {0:'Z',1:'A',2:'B',3:'C',4:'D',5:'E',6:'F',7:'G',8:'H',
-                9:'I',10:'J',11:'K',12:'L',13:'M',14:'N',15:'O',
-                16:'P',17:'Q',18:'R',19:'S',20:'T',21:'U',22:'V',
-                23:'W',24:'X',25:'Y',26:'Z'}
-
-    result=''
-    # Assuming col_number is never higher than 1024
-    ''' As of 01:38AM on Feb 6, 2021, I finally fixed the math on this
-        freaking function.
-
-        Sadly, I don't feel as happy as I should. I don't feel happy at all.
-        The amount of head banging the wall won't make up for the lack of
-        sleep.
-
-        If you're stuck on a problem, set a timer for 10-15 minutes.
-        If you can't solve the problem in that time, take a break or,
-        in my case, GO TO SLEEP.
-    '''
-    while col_number > 0:
-        result += alphabet[col_number % 26]
-    # imagine calling the same variable 3 times in the same short equation.
-        col_number -= col_number - (col_number // 26)
-    ''' The math above returns the correct letters right to left first,
-        so just reversing it makes it a lot simpler to deal with.
-    '''
-    return result[::-1]
+    ''' Return column letter. 1 -> 'A'. '''
+    return get_column_letter(col_number)
 
 
-# 'A' -> 1, 'QM' -> 455, 'BRC'-> 1823
-def grab_col_index(column):
-    ''' Return the number index of the column. '''
-    betalpha = {' ':0,'A':1,'B':2,'C':3,'D':4,'E':5,'F':6,'G':7,'H':8,
-                'I':9,'J':10,'K':11,'L':12,'M':13,'N':14,'O':15,
-                'P':16,'Q':17,'R':18,'S':19,'T':20,'U':21,'V':22,
-                'X':23,'Y':24,'X':25,'Z':26}
-    # Reversing the string makes this a whole heck of a lot easier
-    column = column[::-1]
-    index = 0
-    for num in range(len(column)):
-        index += (betalpha[column[num].upper()] % 27 * (26**num))
-    return index
+def get_col_index(column):
+    ''' Return the number index of the column. 'A' -> 1. '''
+    return column_index_from_string(column)
 
 
 def find_length_row(wkst, row=1):
-    ''' Find the number of cells between:
-        Row's 1st cell that has a value and row's last cell that has a value.
-    '''
+    ''' Return range of cells along the row. '''
     for col in range(1,(len(wkst[row])+1)):
         if wkst.cell(row, col).value != None:
             # have to add 1, otherwise it'll always be off by 1
-            return ( len(wkst[row]) + 1) - col
+            return ( len(wkst[row] ) + 1) - col
 
-#col can be a letter or number. 'A' --> 1, 'AB' --> 28
-def find_length_col(wkst, col='A'):
-    ''' Find the number of cells between:
-        column's 1st cell that has a value and column's last cell that has a value.
-    '''
-    #if col is int, grab column letter.
+
+#col can be a letter or number. 1 --> 'A', 28 --> 'AB'
+def find_length_col(wkst, col=1):
+    ''' Return the range of cells along the column. '''
+    #if col is int, leave alone.
     if isinstance(col, int):
-        pass
-#        col = grab_col_letter(col)
-    # assuming col is str
-    col_index = grab_col_index(col)
+        col_index = col
+    elif isinstance(col, str):
+        col_index = grab_col_letter(col)
 
     for row in range(1,(len(wkst[col]) + 1)):
         if wkst.cell(row, col_index).value != None:
@@ -273,6 +254,7 @@ def check_extension(filename, ext='.db'):
     else:
         return False
 
+
 # This function is under the assumption that the only extensions we're
 # dealing with are '.db' and 'xlsx' or similar.
 # It's a good idea pass the '.' along with the extension name.
@@ -301,7 +283,7 @@ def change_extension(filename, ext='.db'):
 # if database doesn't exist, sqlite3 creates it.
 # So this will probably be the usual way to make
 # new databases.
-def connect(sqlite3_mod, database):
+def connect(database,sqlite3_mod=sqlite3):
     ''' Create/Connect to database then grab the connection '''
     database = change_extension(database)
     return sqlite3_mod.connect(database)
@@ -315,7 +297,8 @@ def create_db(cursor, database):
     database = change_extension(database)
     cursor.execute(f'{database}')
 
-    # note: I guss I could do this by using subprocess module to
+
+    # note: I guess I could do this by using subprocess module to
     #       to create the process of using sqlite3 cli tool to
     #       create the database then kill process (if it doesn't
     #       do it itself), but I don't feel like doing that.
@@ -324,7 +307,7 @@ def create_db(cursor, database):
 def connect_to_db(database):
     ''' Create/Connect to database then grab the connection and cursor '''
     database = change_extension(database)
-    connection = connect(sqlite3, database)
+    connection = connect(database)
     cursor = grab_cursor(connection)
     return connection, cursor
 
@@ -344,17 +327,16 @@ def close(connection):
     ''' Close connection '''
     connection.close()
 
-
 # inserting data into some (or all, if you want) columns
-def insert_cols(cursor, table, col_names, row_data, *args, **kwargs):
+def insert(cursor, table, col_names, row_data, *args, **kwargs):
     ''' Insert data into table for specific columns. '''
-    cursor.execute(f'''INSERT INTO {table} ({",".join(col_names)}) VALUES ({','.join(row_data)})''')
+    cursor.execute(f'''INSERT INTO {table} ({','.join(col_names)}) VALUES ({','.join(row_data)})''')
 
 
 # inserting data to every column
 def insert_all(cursor, table, row_data):
     ''' Insert data into table for all columns.'''
-    cursor.execute(f'''INSERT INTO {table} VALUES ({row_data})''')
+    cursor.execute(f'''INSERT INTO {table} VALUES ({','.join(row_data)})''')
 
 
 # Prepping select queries for sending sqlite database into 2010` excel files
@@ -362,6 +344,7 @@ def insert_all(cursor, table, row_data):
 def select(cursor, table, cols):
     ''' Select query of specific columns from table. '''
     cursor.execute(f'''SELECT {','.join(cols)} from {table}''')
+
 
 # select all columns
 def select_all(cursor, table):
@@ -371,19 +354,157 @@ def select_all(cursor, table):
 
 # sqlite really wants single quotes around text data.
 # ex) s1 = 'string', s2 = '\'string\''
-# cursor.execute(f"insert into table_a values ({s1})"
+# cursor.execute(f"insert into table_a values ({s1})")
 #   -> "insert into table_a values (string) x
 #   -> Error: No column named string
-# cursor.execute(f"insert into table_a values ({s2})"
+# cursor.execute(f"insert into table_a values ({s2})")
 #   -> "insert into table_a values ('string') ✔
 def stringify(string):
     ''' Add single quotes to string then return. '''
     return (f'\'{str(string)}\'')
 
+
 if __name__ == '__main__':
     # Basic program information
-    diag.__info__(__title__, __version__, __status__, __author__, __email__)
+    #diag.__info__(__title__, __version__, __status__, __author__, __email__)
+    print('aaaaaaaaaaaaaaaaaaaaaaaaaaa')
 
-    print('BRC',str(grab_col_index('BRC')))
-    print(str(455),str(grab_col_letter(455)))
-    print(str(79),str(grab_col_letter(79)))
+    #Introduce argparse
+    import argparse
+    parser = argparse.ArgumentParser(description='Export excel file to sqlite database.')
+
+    # positional argument(s)
+    parser.add_argument('xcel_file', metavar='xcel_file',type=str,
+                        nargs=1, help='path of filename of excel file')
+
+    # optional arguments
+    parser.add_argument('-o','--output',  nargs=1, metavar='\b',
+                        default=sys.argv[1], #xcel_file[0], # ''.join(parser.parse_args().xcel_file)
+                        help='output database file (default: [xcel_file].db)')
+
+    parser.add_argument('-c','--first-col', nargs=1, default=1,
+                        metavar='\b',
+                        help='column the data starts on (default: 1)')
+
+    parser.add_argument('-r','--first-row', nargs=1,type=int, default=1,
+                        metavar='\b',
+                        help='row the data starts on (default: 1)')
+
+    parser.add_argument('-f','--field-col', nargs=1, metavar='\b',
+                        default=1,
+                        help='column that row titles are on'),
+
+    parser.add_argument('-F','--field-row', nargs=1, metavar='\b',
+                        default=1, help='row that column titles are on (default: 1)')
+
+    parser.add_argument('-s','--skip-rows', nargs='+', metavar='\b',default=[],
+                        help='row indexes or keywords to skip (default: [])')
+
+    parser.add_argument('-S','--skip-cols', nargs='+', metavar='\b',default=[], type=int,
+                        help='column indexes or keywords to skip (default: [])')
+
+    args = parser.parse_args()
+
+
+    def prep_cli_args(cli_args):
+        ''' Take command line arguments. Prep them for use. '''
+        ext = '.db'
+
+        #for the moment, just using field_col if user uses both field col and field row
+        # if field_cols is True
+        print(f'field_col: {cli_args.field_col}')
+        print(f'first_col: {cli_args.first_col}')
+        if cli_args.field_col:
+            # if field_col is int
+            if type(cli_args.field_col) == type(int()):
+                pass
+            # if fields_col is str
+            elif type(cli_args.field_col[0]) == type(str()):
+                cli_args.field_col = column_index_from_string(cli_args.field_col)
+            # if field_col >= first_col
+            if cli_args.field_col >= cli_args.first_col:
+                cli_args.first_col = cli_args.field_col + 1
+        # if field_row is True
+        elif cli_args.field_row:
+            # if field_row >= first_row
+            if cli_args.field_row >= cli_args.first_row:
+                cli_args.first_row = cli_args.field_row + 1
+
+        # if None passed as parameter
+        if 'None' in cli_args.skip_rows:
+        # Have to do this because argparse takes in alphabetical
+        # parameters as strings. Have to replace 'None' with None
+        # for the grab excel functions
+            indice = cli_args.skip_rows.index('None')
+            cli_args.skip_rows[indice] = None
+
+        # if check_extension is False
+        if not check_extension(cli_args.output, ext):
+            cli_args.output = change_extension(cli_args.output, ext)
+
+        # remove path '/' slashes
+        # debating keeping this, but not sure why.
+        cli_args.database = cli_args.xcel_file[0].split('/')[-1]
+        cli_args.database = change_extension(cli_args.database,ext)
+        cli_args.xcel_file = cli_args.xcel_file[0]
+
+    # prepare command line arguments
+    prep_cli_args(args)
+
+    #debug
+    #print args
+    print(args)
+
+    wb = load_workbook(args.xcel_file)
+    sheet_titles = grab_sheet_titles(wb)
+    wkst = wb[sheet_titles[0]]
+
+    connection, cursor = connect_to_db(args.database)
+
+    last_row = len(wkst['A'])
+    last_col = len(wkst[1])
+
+    #For now, only operating on the basis of one worksheet per execute
+    #
+    #for wkst in wb[sheet_titles]:
+    fields = grab_fields(wkst, last_col, row=args.field_row,skip=args.skip_cols)
+    types = grab_types(wkst, last_col, row=args.field_row, skip=args.skip_cols)
+    schema = create_schema(fields, types)
+    create_table(cursor, sheet_titles[0], schema)
+
+    print("\n-- Grabbing and Inserting Records")
+    for key, record in grab_records(wkst, last_col, last_row,
+                                args.first_row, args.first_col,
+                                args.skip_rows,args.skip_cols).items():
+#    for record  in grab_records_gen(wkst,last_col, last_row,
+#                                args.first_row, args.first_col,
+#                                args.skip_rows,args.skip_cols):
+
+        insert(cursor,sheet_titles[0],fields,record)
+#        insert_all(cursor, sheet_titles[0],record)
+#        print(f'Printing - {key}, {record}')
+
+    commit(connection)
+# Pseudocode
+# Take in command line argumens
+# Prepare arguments
+# load workbook from xcel_file (-loading just 1 workbook for the time being-)
+# grab sheet titles
+# grab worksheet
+# loop through worksheet titles
+#     grab worksheet (wkst_title)
+#     grab length of column and row
+#     # last_col = len(wkst[1]) #columns along row 1
+#     # last_row = len(wkst['A']) #rows along column 'A'
+#
+#     grab fields
+#     grab fields' datatypes
+#     create schema
+#     create table with worksheet title
+#     loop through records
+#         inserting records into table
+#     commit transactions (inserts)
+#     close connection
+#
+
+
